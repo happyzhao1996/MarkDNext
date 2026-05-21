@@ -29,6 +29,7 @@
     <EmbeddedResource Remove=".dotnet\**" />
     <None Remove=".dotnet\**" />
     <None Remove="Assets\**\*" />
+    <None Remove="themes\**\*" />
     <None Remove="Logo.png" />
     <Page Remove=".dotnet\**" />
   </ItemGroup>
@@ -37,6 +38,9 @@
     <Resource Include="Logo.png" />
     <EmbeddedResource Include="Assets\**\*">
       <LogicalName>Assets/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="themes\**\*.json">
+      <LogicalName>Themes/%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

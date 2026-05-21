@@ -15,6 +15,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -27,11 +28,14 @@ public partial class MainWindow : Window
 {
     private const string DocumentHost = "mdv-document.local";
     private const string AssetHost = "mdv-assets.local";
+    private const string DefaultThemeId = "flat";
     private const int ListIndentSize = 4;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly Lazy<IReadOnlyDictionary<string, string>> EmbeddedAssetNames = new(BuildEmbeddedAssetMap);
 
+    private readonly IReadOnlyList<ThemeDefinition> _availableThemes = LoadBuiltInThemes();
+    private readonly MarkdownColorizer _markdownColorizer = new();
     private readonly MarkdownPipeline _markdownPipeline;
     private readonly DispatcherTimer _renderTimer;
     private readonly DispatcherTimer _previewScrollTimer;
@@ -64,6 +68,8 @@ public partial class MainWindow : Window
     private double _editorFontSize = 14;
     private string _contentFontFamily = "Segoe UI";
     private double _contentFontSize = 16;
+    private string _currentThemeId = DefaultThemeId;
+    private ThemeMode _themeMode = ThemeMode.Normal;
     private ColorProfile _colorProfile = ColorProfile.Default;
 
     public MainWindow()
@@ -105,7 +111,7 @@ public partial class MainWindow : Window
         };
         Editor.TextArea.TextEntered += Editor_TextArea_TextEntered;
         Editor.TextArea.PreviewKeyDown += Editor_TextArea_PreviewKeyDown;
-        Editor.TextArea.TextView.LineTransformers.Add(new MarkdownColorizer());
+        Editor.TextArea.TextView.LineTransformers.Add(_markdownColorizer);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -358,24 +364,34 @@ public partial class MainWindow : Window
             : "Automatic completion disabled.";
     }
 
-    private void ViewBoth_Click(object sender, RoutedEventArgs e)
+    private async void SplitMode_Click(object sender, RoutedEventArgs e)
     {
+        await SetWysiwygModeAsync(false);
         SetViewMode(ViewMode.Both);
     }
 
-    private void ViewEditor_Click(object sender, RoutedEventArgs e)
+    private async void PreviewMode_Click(object sender, RoutedEventArgs e)
     {
-        SetViewMode(ViewMode.EditorOnly);
-    }
-
-    private void ViewPreview_Click(object sender, RoutedEventArgs e)
-    {
+        await SetWysiwygModeAsync(false);
         SetViewMode(ViewMode.PreviewOnly);
     }
 
-    private async void SourceMode_Click(object sender, RoutedEventArgs e)
+    private async void StatusEditorMode_Click(object sender, RoutedEventArgs e)
     {
         await SetWysiwygModeAsync(false);
+        SetViewMode(ViewMode.EditorOnly);
+    }
+
+    private async void StatusSplitMode_Click(object sender, RoutedEventArgs e)
+    {
+        await SetWysiwygModeAsync(false);
+        SetViewMode(ViewMode.Both);
+    }
+
+    private async void StatusPreviewMode_Click(object sender, RoutedEventArgs e)
+    {
+        await SetWysiwygModeAsync(false);
+        SetViewMode(ViewMode.PreviewOnly);
     }
 
     private async void WysiwygMode_Click(object sender, RoutedEventArgs e)
@@ -390,12 +406,40 @@ public partial class MainWindow : Window
 
     private void Font_Click(object sender, RoutedEventArgs e)
     {
-        var familyBox = new TextBox
+        var familyBox = new ComboBox
         {
-            Text = _editorFontFamily,
             MinWidth = 260,
-            Margin = new Thickness(0, 4, 0, 10)
+            MaxDropDownHeight = 320,
+            Margin = new Thickness(0, 4, 0, 10),
+            IsTextSearchEnabled = true
         };
+
+        foreach (var family in Fonts.SystemFontFamilies.OrderBy(f => f.Source, StringComparer.CurrentCultureIgnoreCase))
+        {
+            var item = new ComboBoxItem
+            {
+                Tag = family.Source,
+                Content = new TextBlock
+                {
+                    Text = family.Source,
+                    FontFamily = family,
+                    FontSize = 15,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                }
+            };
+            familyBox.Items.Add(item);
+
+            if (string.Equals(family.Source, _editorFontFamily, StringComparison.CurrentCultureIgnoreCase))
+            {
+                familyBox.SelectedItem = item;
+            }
+        }
+
+        if (familyBox.SelectedItem is null && familyBox.Items.Count > 0)
+        {
+            familyBox.SelectedIndex = 0;
+        }
+
         var sizeBox = new TextBox
         {
             Text = _editorFontSize.ToString("0.#", CultureInfo.InvariantCulture),
@@ -437,7 +481,10 @@ public partial class MainWindow : Window
             size = _editorFontSize;
         }
 
-        _editorFontFamily = string.IsNullOrWhiteSpace(familyBox.Text) ? "Consolas" : familyBox.Text.Trim();
+        var selectedFamily = familyBox.SelectedItem is ComboBoxItem { Tag: string familyName }
+            ? familyName
+            : _editorFontFamily;
+        _editorFontFamily = string.IsNullOrWhiteSpace(selectedFamily) ? "Consolas" : selectedFamily.Trim();
         _contentFontFamily = _editorFontFamily;
         _editorFontSize = Math.Clamp(size, 8, 48);
         _contentFontSize = Math.Clamp(size + 2, 10, 54);
@@ -490,6 +537,7 @@ public partial class MainWindow : Window
             }
 
             _colorProfile = profile.Normalized();
+            _currentThemeId = string.Empty;
             ApplyAppearance();
             RefreshRenderedShells();
             StatusText.Text = $"Loaded color profile {Path.GetFileName(dialog.FileName)}";
@@ -527,10 +575,210 @@ public partial class MainWindow : Window
 
     private void ResetColorProfile_Click(object sender, RoutedEventArgs e)
     {
-        _colorProfile = ColorProfile.Default;
+        _currentThemeId = DefaultThemeId;
+        _themeMode = ThemeMode.Normal;
+        ApplySelectedTheme();
+        StatusText.Text = "Color profile reset.";
+    }
+
+    private void ChooseTheme_Click(object sender, RoutedEventArgs e)
+    {
+        var originalThemeId = _currentThemeId;
+        var originalMode = _themeMode;
+        var originalProfile = _colorProfile;
+
+        var list = new ListBox
+        {
+            MinWidth = 340,
+            Height = 360,
+            Margin = new Thickness(0, 8, 0, 12)
+        };
+
+        var normalButton = new RadioButton
+        {
+            Content = "Normal",
+            Margin = new Thickness(0, 0, 14, 0),
+            IsChecked = _themeMode == ThemeMode.Normal
+        };
+        var darkButton = new RadioButton
+        {
+            Content = "Dark",
+            IsChecked = _themeMode == ThemeMode.Dark
+        };
+        var modePanel = new StackPanel { Orientation = Orientation.Horizontal };
+        modePanel.Children.Add(normalButton);
+        modePanel.Children.Add(darkButton);
+
+        var okButton = new Button { Content = "OK", MinWidth = 78, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
+        var cancelButton = new Button { Content = "Cancel", MinWidth = 78, IsCancel = true };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(okButton);
+        buttons.Children.Add(cancelButton);
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock { Text = "Theme" });
+        panel.Children.Add(list);
+        panel.Children.Add(new TextBlock { Text = "Mode", Margin = new Thickness(0, 0, 0, 6) });
+        panel.Children.Add(modePanel);
+        panel.Children.Add(buttons);
+
+        var dialog = new Window
+        {
+            Title = "Themes",
+            Owner = this,
+            Topmost = true,
+            Content = panel,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize
+        };
+
+        void PopulateThemeList(string selectedId)
+        {
+            list.Items.Clear();
+            ListBoxItem? selectedItem = null;
+            foreach (var theme in _availableThemes)
+            {
+                var item = CreateThemeListItem(theme, _themeMode);
+                list.Items.Add(item);
+                if (string.Equals(theme.Id, selectedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedItem = item;
+                }
+            }
+
+            if (selectedItem is null && list.Items.Count > 0)
+            {
+                selectedItem = (ListBoxItem)list.Items[0];
+            }
+
+            if (selectedItem is not null)
+            {
+                list.SelectedItem = selectedItem;
+            }
+        }
+
+        void ApplySelection()
+        {
+            if (list.SelectedItem is not ListBoxItem { Tag: ThemeDefinition theme })
+            {
+                return;
+            }
+
+            _currentThemeId = theme.Id;
+            ApplySelectedTheme();
+        }
+
+        list.SelectionChanged += (_, _) => ApplySelection();
+        normalButton.Checked += (_, _) =>
+        {
+            _themeMode = ThemeMode.Normal;
+            PopulateThemeList(_currentThemeId);
+            ApplySelection();
+        };
+        darkButton.Checked += (_, _) =>
+        {
+            _themeMode = ThemeMode.Dark;
+            PopulateThemeList(_currentThemeId);
+            ApplySelection();
+        };
+        okButton.Click += (_, _) => dialog.DialogResult = true;
+
+        PopulateThemeList(_currentThemeId);
+
+        if (dialog.ShowDialog() == true)
+        {
+            StatusText.Text = $"Theme: {FindTheme(_currentThemeId).DisplayName} ({ThemeModeLabel(_themeMode)})";
+            return;
+        }
+
+        _currentThemeId = originalThemeId;
+        _themeMode = originalMode;
+        _colorProfile = originalProfile;
         ApplyAppearance();
         RefreshRenderedShells();
-        StatusText.Text = "Color profile reset.";
+    }
+
+    private ListBoxItem CreateThemeListItem(ThemeDefinition theme, ThemeMode mode)
+    {
+        var profile = GetThemeProfile(theme, mode);
+        var title = new TextBlock
+        {
+            Text = theme.DisplayName,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var swatches = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(12, 0, 0, 0)
+        };
+
+        foreach (var color in new[] { profile.Page, profile.Text, profile.Accent, profile.Heading })
+        {
+            swatches.Children.Add(new Border
+            {
+                Width = 18,
+                Height = 18,
+                Margin = new Thickness(3, 0, 0, 0),
+                BorderThickness = new Thickness(1),
+                BorderBrush = BrushFromHex(profile.Line),
+                Background = BrushFromHex(color)
+            });
+        }
+
+        var row = new DockPanel { LastChildFill = true, MinWidth = 300 };
+        DockPanel.SetDock(swatches, Dock.Right);
+        row.Children.Add(swatches);
+        row.Children.Add(title);
+
+        return new ListBoxItem
+        {
+            Tag = theme,
+            Content = row,
+            Padding = new Thickness(8, 7, 8, 7)
+        };
+    }
+
+    private void NormalThemeMode_Click(object sender, RoutedEventArgs e)
+    {
+        SetThemeMode(ThemeMode.Normal);
+    }
+
+    private void DarkThemeMode_Click(object sender, RoutedEventArgs e)
+    {
+        SetThemeMode(ThemeMode.Dark);
+    }
+
+    private void SetThemeMode(ThemeMode mode)
+    {
+        _themeMode = mode;
+        ApplySelectedTheme();
+        StatusText.Text = $"{ThemeModeLabel(mode)} mode";
+    }
+
+    private void ApplySelectedTheme()
+    {
+        _colorProfile = GetThemeProfile(FindTheme(_currentThemeId), _themeMode).Normalized();
+        ApplyAppearance();
+        RefreshRenderedShells();
+    }
+
+    private ThemeDefinition FindTheme(string id)
+    {
+        return _availableThemes.FirstOrDefault(theme => string.Equals(theme.Id, id, StringComparison.OrdinalIgnoreCase))
+            ?? _availableThemes[0];
+    }
+
+    private static ColorProfile GetThemeProfile(ThemeDefinition theme, ThemeMode mode)
+    {
+        return mode == ThemeMode.Dark ? theme.Dark : theme.Light;
+    }
+
+    private static string ThemeModeLabel(ThemeMode mode)
+    {
+        return mode == ThemeMode.Dark ? "Dark" : "Normal";
     }
 
     private void MicaMaterial_Click(object sender, RoutedEventArgs e)
@@ -552,17 +800,8 @@ public partial class MainWindow : Window
     {
         _windowBackdrop = kind;
         WindowBackdrop.TryApply(this, kind);
-
-        RootDock.Background = kind switch
-        {
-            WindowBackdropKind.Acrylic => new SolidColorBrush(Color.FromArgb(0xCC, 0xF8, 0xFA, 0xFC)),
-            WindowBackdropKind.Mica => new SolidColorBrush(Color.FromArgb(0xDD, 0xF6, 0xF7, 0xF9)),
-            _ => new SolidColorBrush(Color.FromRgb(0xF6, 0xF7, 0xF9))
-        };
-
-        MicaMaterialMenuItem.IsChecked = kind == WindowBackdropKind.Mica;
-        AcrylicMaterialMenuItem.IsChecked = kind == WindowBackdropKind.Acrylic;
-        FlatMaterialMenuItem.IsChecked = kind == WindowBackdropKind.Flat;
+        UpdateWindowMaterialMenuChecks();
+        ApplyAppearance();
     }
 
     private void AdjustFontSize(double delta)
@@ -580,12 +819,64 @@ public partial class MainWindow : Window
         Editor.FontSize = _editorFontSize;
         Editor.Foreground = BrushFromHex(_colorProfile.EditorText);
         Editor.Background = BrushFromHex(_colorProfile.EditorBackground);
+        Editor.LineNumbersForeground = BrushFromHex(_colorProfile.Muted);
+        Editor.TextArea.SelectionBrush = BrushFromHex(_colorProfile.Accent, 0x44);
 
-        RootDock.Background = BrushFromHex(_colorProfile.Window);
+        RootDock.Background = _windowBackdrop switch
+        {
+            WindowBackdropKind.Acrylic => BrushFromHex(_colorProfile.Window, 0xCC),
+            WindowBackdropKind.Mica => BrushFromHex(_colorProfile.Window, 0xDD),
+            _ => BrushFromHex(_colorProfile.Window)
+        };
         MainMenu.Background = BrushFromHex(_colorProfile.Chrome);
+        MainMenu.Foreground = BrushFromHex(_colorProfile.Text);
         MainStatusBar.Background = BrushFromHex(_colorProfile.Chrome);
+        MainStatusBar.Foreground = BrushFromHex(_colorProfile.Text);
+        StatusText.Foreground = BrushFromHex(_colorProfile.Muted);
+        PositionText.Foreground = BrushFromHex(_colorProfile.Text);
         EditorPane.Background = BrushFromHex(_colorProfile.Surface);
+        EditorPane.BorderBrush = BrushFromHex(_colorProfile.Line);
         PreviewPane.Background = BrushFromHex(_colorProfile.Surface);
+        PreviewPane.BorderBrush = BrushFromHex(_colorProfile.Line);
+        Splitter.Background = BrushFromHex(_colorProfile.Line);
+        FindBar.Background = BrushFromHex(_colorProfile.Surface);
+        FindBar.BorderBrush = BrushFromHex(_colorProfile.Line);
+
+        _markdownColorizer.ApplyTheme(
+            _colorProfile.Heading,
+            _colorProfile.Accent,
+            _colorProfile.Muted,
+            _colorProfile.Accent,
+            _colorProfile.Heading,
+            _colorProfile.EditorText);
+        Editor.TextArea.TextView.Redraw();
+
+        ApplyStatusModeButtonAppearance(StatusEditorModeButton);
+        ApplyStatusModeButtonAppearance(StatusSplitModeButton);
+        ApplyStatusModeButtonAppearance(StatusPreviewModeButton);
+        UpdateThemeModeMenuChecks();
+        UpdateWindowMaterialMenuChecks();
+        UpdateModeMenuChecks();
+    }
+
+    private void ApplyStatusModeButtonAppearance(ToggleButton button)
+    {
+        button.Foreground = BrushFromHex(_colorProfile.Text);
+        button.Background = BrushFromHex(_colorProfile.Surface);
+        button.BorderBrush = BrushFromHex(_colorProfile.Line);
+    }
+
+    private void UpdateThemeModeMenuChecks()
+    {
+        NormalThemeModeMenuItem.IsChecked = _themeMode == ThemeMode.Normal;
+        DarkThemeModeMenuItem.IsChecked = _themeMode == ThemeMode.Dark;
+    }
+
+    private void UpdateWindowMaterialMenuChecks()
+    {
+        MicaMaterialMenuItem.IsChecked = _windowBackdrop == WindowBackdropKind.Mica;
+        AcrylicMaterialMenuItem.IsChecked = _windowBackdrop == WindowBackdropKind.Acrylic;
+        FlatMaterialMenuItem.IsChecked = _windowBackdrop == WindowBackdropKind.Flat;
     }
 
     private void RefreshRenderedShells()
@@ -1670,6 +1961,8 @@ public partial class MainWindow : Window
 
     private string EditorFontSizeCss => _editorFontSize.ToString("0.###", CultureInfo.InvariantCulture);
 
+    private string ColorSchemeCss => _themeMode == ThemeMode.Dark ? "dark" : "light";
+
     private static string CssFontFamily(string family, string fallback)
     {
         var clean = string.IsNullOrWhiteSpace(family) ? "Segoe UI" : family.Trim();
@@ -1695,7 +1988,7 @@ public partial class MainWindow : Window
 <link rel="stylesheet" href="https://{{AssetHost}}/katex/katex.min.css">
 <style>
 :root {
-  color-scheme: light;
+  color-scheme: {{ColorSchemeCss}};
   --page: {{_colorProfile.Page}};
   --text: {{_colorProfile.Text}};
   --muted: {{_colorProfile.Muted}};
@@ -2639,6 +2932,7 @@ window.mdvSetPreview = async function (html, sourceLine) {
 <link rel="stylesheet" href="https://{{AssetHost}}/katex/katex.min.css">
 <style>
 :root {
+  color-scheme: {{ColorSchemeCss}};
   --page: {{_colorProfile.Page}};
   --text: {{_colorProfile.Text}};
   --muted: {{_colorProfile.Muted}};
@@ -4724,9 +5018,7 @@ refreshEnhancements(document);
         Splitter.Visibility = splitVisible ? Visibility.Visible : Visibility.Collapsed;
         PreviewPane.Visibility = previewVisible ? Visibility.Visible : Visibility.Collapsed;
 
-        ViewBothMenuItem.IsChecked = mode == ViewMode.Both;
-        ViewEditorMenuItem.IsChecked = mode == ViewMode.EditorOnly;
-        ViewPreviewMenuItem.IsChecked = mode == ViewMode.PreviewOnly;
+        UpdateModeMenuChecks();
 
         if (previewVisible)
         {
@@ -4739,20 +5031,34 @@ refreshEnhancements(document);
         }
     }
 
+    private void UpdateModeMenuChecks()
+    {
+        WysiwygModeMenuItem.IsChecked = _wysiwygMode;
+        ViewBothMenuItem.IsChecked = !_wysiwygMode && _viewMode == ViewMode.Both;
+        ViewPreviewMenuItem.IsChecked = !_wysiwygMode && _viewMode == ViewMode.PreviewOnly;
+
+        StatusEditorModeButton.IsChecked = !_wysiwygMode && _viewMode == ViewMode.EditorOnly;
+        StatusSplitModeButton.IsChecked = !_wysiwygMode && _viewMode == ViewMode.Both;
+        StatusPreviewModeButton.IsChecked = !_wysiwygMode && _viewMode == ViewMode.PreviewOnly;
+
+        StatusEditorModeButton.IsEnabled = !_wysiwygMode;
+        StatusSplitModeButton.IsEnabled = !_wysiwygMode;
+        StatusPreviewModeButton.IsEnabled = !_wysiwygMode;
+    }
+
     private async Task SetWysiwygModeAsync(bool enabled)
     {
         if (enabled && !_wysiwygReady)
         {
             StatusText.Text = "WYSIWYG mode needs Microsoft Edge WebView2 Runtime.";
             WysiwygModeMenuItem.IsChecked = false;
-            SourceModeMenuItem.IsChecked = true;
+            UpdateModeMenuChecks();
             return;
         }
 
         if (enabled == _wysiwygMode)
         {
-            SourceModeMenuItem.IsChecked = !enabled;
-            WysiwygModeMenuItem.IsChecked = enabled;
+            UpdateModeMenuChecks();
             return;
         }
 
@@ -4767,8 +5073,6 @@ refreshEnhancements(document);
         }
 
         _wysiwygMode = enabled;
-        SourceModeMenuItem.IsChecked = !enabled;
-        WysiwygModeMenuItem.IsChecked = enabled;
         Editor.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
         Wysiwyg.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
 
@@ -4785,6 +5089,8 @@ refreshEnhancements(document);
             Editor.TextArea.Focus();
             StatusText.Text = "Source Markdown mode";
         }
+
+        UpdateModeMenuChecks();
     }
 
     private void SetWysiwygMode(bool enabled)
@@ -5321,6 +5627,12 @@ refreshEnhancements(document);
         PreviewOnly
     }
 
+    private enum ThemeMode
+    {
+        Normal,
+        Dark
+    }
+
     private sealed record WysiwygBlock(int Index, string Source, string Html, string Kind);
 
     private sealed record MarkdownSourceBlock(int StartLine, int EndLine, string Source);
@@ -5330,6 +5642,185 @@ refreshEnhancements(document);
     private sealed record MathSegment(string Placeholder, string Source, bool Display);
 
     private sealed record ImageSegment(string Placeholder, string Alt, string Target, string? Title);
+
+    private sealed record ThemeDefinition(string Id, string DisplayName, ColorProfile Light, ColorProfile Dark);
+
+    private sealed record ThemeFile(ThemePalette Dark, ThemePalette Light);
+
+    private sealed record ThemePalette(
+        string Accent,
+        string Background,
+        string Block,
+        string Cursor,
+        string Emphasis,
+        string Error,
+        string Foreground,
+        string Heading,
+        string Link,
+        string Markup,
+        string Selection);
+
+    private static IReadOnlyList<ThemeDefinition> LoadBuiltInThemes()
+    {
+        var themes = new List<ThemeDefinition> { CreateDefaultTheme() };
+        var assembly = Assembly.GetExecutingAssembly();
+
+        foreach (var resourceName in assembly.GetManifestResourceNames().OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+        {
+            var normalized = resourceName.Replace('\\', '/');
+            if (!normalized.StartsWith("Themes/", StringComparison.OrdinalIgnoreCase)
+                || !normalized.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var stream = assembly.GetManifestResourceStream(resourceName);
+                if (stream is null)
+                {
+                    continue;
+                }
+
+                var themeFile = JsonSerializer.Deserialize<ThemeFile>(stream, JsonOptions);
+                if (themeFile is null)
+                {
+                    continue;
+                }
+
+                var fileName = normalized.Split('/').Last();
+                var id = Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant();
+                themes.Add(new ThemeDefinition(
+                    id,
+                    ThemeDisplayName(id),
+                    ColorProfileFromPalette(themeFile.Light, false).Normalized(),
+                    ColorProfileFromPalette(themeFile.Dark, true).Normalized()));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+        }
+
+        return themes;
+    }
+
+    private static ThemeDefinition CreateDefaultTheme()
+    {
+        return new ThemeDefinition(
+            DefaultThemeId,
+            "Flat",
+            ColorProfile.Default,
+            new ColorProfile(
+                "#171a1f",
+                "#e7edf5",
+                "#98a6b8",
+                "#f1f5f9",
+                "#303844",
+                "#252c36",
+                "#67a7dc",
+                "#202734",
+                "#171a1f",
+                "#202734",
+                "#171a1f",
+                "#e7edf5",
+                "#202734"));
+    }
+
+    private static string ThemeDisplayName(string id)
+    {
+        return id switch
+        {
+            "amber-focus" => "Amber Focus",
+            "azure-workbench" => "Azure Workbench",
+            "blueprint-slate" => "Blueprint Slate",
+            "indigo-frame" => "Indigo Frame",
+            "neon-nocturne" => "Neon Nocturne",
+            "polar-note" => "Polar Note",
+            "quiet-neutral" => "Quiet Neutral",
+            "rose-mocha" => "Rose Mocha",
+            "teal-topaz" => "Teal Topaz",
+            "violet-lens" => "Violet Lens",
+            "warm-paper" => "Warm Paper",
+            _ => CultureInfo.CurrentCulture.TextInfo.ToTitleCase(id.Replace('-', ' '))
+        };
+    }
+
+    private static ColorProfile ColorProfileFromPalette(ThemePalette palette, bool dark)
+    {
+        var background = NormalizeThemeColor(palette.Background, dark ? "#1f2329" : "#ffffff");
+        var foreground = NormalizeThemeColor(palette.Foreground, dark ? "#e5e7eb" : "#1f2933");
+        var accent = NormalizeThemeColor(string.IsNullOrWhiteSpace(palette.Link) ? palette.Accent : palette.Link, "#1769aa");
+        var heading = NormalizeThemeColor(palette.Heading, foreground);
+        var muted = NormalizeThemeColor(palette.Markup, MixColors(background, foreground, dark ? 0.55 : 0.48));
+        var line = NormalizeThemeColor(palette.Cursor, MixColors(background, foreground, dark ? 0.24 : 0.18));
+        var code = MixColors(background, NormalizeThemeColor(palette.Block, accent), dark ? 0.16 : 0.08);
+        var surface = MixColors(background, foreground, dark ? 0.06 : 0.025);
+        var chrome = MixColors(background, foreground, dark ? 0.10 : 0.045);
+        var quoteBackground = MixColors(background, NormalizeThemeColor(palette.Selection, accent), dark ? 0.22 : 0.10);
+
+        return new ColorProfile(
+            background,
+            foreground,
+            muted,
+            heading,
+            line,
+            code,
+            accent,
+            surface,
+            background,
+            chrome,
+            background,
+            foreground,
+            quoteBackground);
+    }
+
+    private static string NormalizeThemeColor(string? value, string fallback)
+    {
+        try
+        {
+            var color = (Color)ColorConverter.ConvertFromString(string.IsNullOrWhiteSpace(value) ? fallback : value);
+            return ColorToHex(color);
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static string MixColors(string baseHex, string overlayHex, double overlayAmount)
+    {
+        var baseColor = ParseThemeColor(baseHex, Colors.White);
+        var overlayColor = ParseThemeColor(overlayHex, Colors.Black);
+        overlayAmount = Math.Clamp(overlayAmount, 0, 1);
+
+        byte Mix(byte first, byte second)
+        {
+            return (byte)Math.Round(first + (second - first) * overlayAmount);
+        }
+
+        return ColorToHex(Color.FromRgb(
+            Mix(baseColor.R, overlayColor.R),
+            Mix(baseColor.G, overlayColor.G),
+            Mix(baseColor.B, overlayColor.B)));
+    }
+
+    private static Color ParseThemeColor(string value, Color fallback)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(value);
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private static string ColorToHex(Color color)
+    {
+        return FormattableString.Invariant($"#{color.R:X2}{color.G:X2}{color.B:X2}");
+    }
 
     private sealed record ColorProfile(
         string Page,

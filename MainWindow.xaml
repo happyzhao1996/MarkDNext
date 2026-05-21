@@ -50,12 +50,9 @@
                 <MenuItem x:Name="AutoCompletionMenuItem" Header="_Automatic Completion" IsCheckable="True" Click="AutoCompletion_Click" />
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem x:Name="ViewBothMenuItem" Header="_Editor + Preview" IsCheckable="True" IsChecked="True" Click="ViewBoth_Click" />
-                <MenuItem x:Name="ViewEditorMenuItem" Header="Editor _Only" IsCheckable="True" Click="ViewEditor_Click" />
-                <MenuItem x:Name="ViewPreviewMenuItem" Header="_Preview Only" IsCheckable="True" Click="ViewPreview_Click" />
-                <Separator />
-                <MenuItem x:Name="SourceModeMenuItem" Header="_Source Markdown" IsCheckable="True" IsChecked="True" Click="SourceMode_Click" />
-                <MenuItem x:Name="WysiwygModeMenuItem" Header="_WYSIWYG Markdown" IsCheckable="True" Click="WysiwygMode_Click" />
+                <MenuItem x:Name="WysiwygModeMenuItem" Header="_WYSIWYG" IsCheckable="True" Click="WysiwygMode_Click" />
+                <MenuItem x:Name="ViewBothMenuItem" Header="_Split View" IsCheckable="True" IsChecked="True" Click="SplitMode_Click" />
+                <MenuItem x:Name="ViewPreviewMenuItem" Header="_Preview Only" IsCheckable="True" Click="PreviewMode_Click" />
                 <Separator />
                 <MenuItem x:Name="WordWrapMenuItem" Header="_Word Wrap" IsCheckable="True" IsChecked="True" Click="WordWrap_Click" />
                 <Separator />
@@ -65,13 +62,19 @@
                     <MenuItem Header="Decrease Font Size" InputGestureText="Ctrl+-" Click="DecreaseFont_Click" />
                     <MenuItem Header="_Reset Font" Click="ResetFont_Click" />
                 </MenuItem>
+                <MenuItem Header="_Themes">
+                    <MenuItem Header="_Choose Theme..." Click="ChooseTheme_Click" />
+                    <Separator />
+                    <MenuItem x:Name="NormalThemeModeMenuItem" Header="_Normal Mode" IsCheckable="True" IsChecked="True" Click="NormalThemeMode_Click" />
+                    <MenuItem x:Name="DarkThemeModeMenuItem" Header="_Dark Mode" IsCheckable="True" Click="DarkThemeMode_Click" />
+                </MenuItem>
                 <MenuItem Header="_Color Profile">
                     <MenuItem Header="_Load..." Click="LoadColorProfile_Click" />
                     <MenuItem Header="_Save Current As..." Click="SaveColorProfile_Click" />
                     <MenuItem Header="_Reset Colors" Click="ResetColorProfile_Click" />
                 </MenuItem>
                 <Separator />
-                <MenuItem Header="_Theme">
+                <MenuItem Header="_Window Material">
                     <MenuItem x:Name="MicaMaterialMenuItem" Header="_Mica" IsCheckable="True" Click="MicaMaterial_Click" />
                     <MenuItem x:Name="AcrylicMaterialMenuItem" Header="_Acrylic" IsCheckable="True" Click="AcrylicMaterial_Click" />
                     <MenuItem x:Name="FlatMaterialMenuItem" Header="_Flat" IsCheckable="True" IsChecked="True" Click="FlatMaterial_Click" />
@@ -106,12 +109,77 @@
         </Border>
 
         <StatusBar x:Name="MainStatusBar" DockPanel.Dock="Bottom" Background="#EAF3F6FA">
-            <StatusBarItem>
-                <TextBlock x:Name="StatusText" Text="Ready" />
-            </StatusBarItem>
-            <Separator />
-            <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock x:Name="PositionText" Text="Ln 1, Col 1" />
+            <StatusBarItem Padding="0" HorizontalContentAlignment="Stretch">
+                <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StatusBar}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="PositionText"
+                               Grid.Column="0"
+                               Margin="8,0,12,0"
+                               VerticalAlignment="Center"
+                               Text="Ln 1, Col 1" />
+                    <TextBlock x:Name="StatusText"
+                               Grid.Column="2"
+                               Margin="12,0,6,0"
+                               MaxWidth="560"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Right"
+                               Text="Ready"
+                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="3"
+                                x:Name="StatusViewButtons"
+                                Orientation="Horizontal"
+                                Margin="4,0,10,0"
+                                VerticalAlignment="Center">
+                        <ToggleButton x:Name="StatusEditorModeButton"
+                                      Width="24"
+                                      Height="22"
+                                      Margin="0,0,3,0"
+                                      ToolTip="Editor only"
+                                      Click="StatusEditorMode_Click">
+                            <Grid Width="13" Height="13">
+                                <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                        BorderThickness="1" />
+                                <Rectangle Width="3"
+                                           Margin="2,2,0,2"
+                                           HorizontalAlignment="Left"
+                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                            </Grid>
+                        </ToggleButton>
+                        <ToggleButton x:Name="StatusSplitModeButton"
+                                      Width="24"
+                                      Height="22"
+                                      Margin="0,0,3,0"
+                                      ToolTip="Split view"
+                                      Click="StatusSplitMode_Click">
+                            <Grid Width="13" Height="13">
+                                <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                        BorderThickness="1" />
+                                <Rectangle Width="1"
+                                           HorizontalAlignment="Center"
+                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                            </Grid>
+                        </ToggleButton>
+                        <ToggleButton x:Name="StatusPreviewModeButton"
+                                      Width="24"
+                                      Height="22"
+                                      ToolTip="Preview only"
+                                      Click="StatusPreviewMode_Click">
+                            <Grid Width="13" Height="13">
+                                <Border BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                        BorderThickness="1" />
+                                <Rectangle Height="3"
+                                           Margin="2,2,2,0"
+                                           VerticalAlignment="Top"
+                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                            </Grid>
+                        </ToggleButton>
+                    </StackPanel>
+                </Grid>
             </StatusBarItem>
         </StatusBar>
 

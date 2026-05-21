@@ -15,6 +15,25 @@ public sealed class MarkdownColorizer : DocumentColorizingTransformer
     private static readonly Regex EmphasisRegex = new(@"(^|[^\*])(\*|_)[^\*_]+(\*|_)", RegexOptions.Compiled);
     private static readonly Regex ListRegex = new(@"^\s*([-+*]|\d+\.)\s+", RegexOptions.Compiled);
 
+    private Brush _headingBrush = CreateBrush("#0b5cad");
+    private Brush _linkBrush = CreateBrush("#0b66c3");
+    private Brush _mutedBrush = CreateBrush("#64748b");
+    private Brush _accentBrush = CreateBrush("#0f766e");
+    private Brush _codeBrush = CreateBrush("#9a3412");
+    private Brush _mathBrush = CreateBrush("#a21caf");
+    private Brush _textBrush = CreateBrush("#111827");
+
+    public void ApplyTheme(string heading, string link, string muted, string accent, string code, string text)
+    {
+        _headingBrush = CreateBrush(heading);
+        _linkBrush = CreateBrush(link);
+        _mutedBrush = CreateBrush(muted);
+        _accentBrush = CreateBrush(accent);
+        _codeBrush = CreateBrush(code);
+        _mathBrush = CreateBrush(heading);
+        _textBrush = CreateBrush(text);
+    }
+
     protected override void ColorizeLine(DocumentLine line)
     {
         var text = CurrentContext.Document.GetText(line);
@@ -28,50 +47,50 @@ public sealed class MarkdownColorizer : DocumentColorizingTransformer
 
         if (IsInsideBlock(line, "```"))
         {
-            ColorRange(offset, line.EndOffset, new SolidColorBrush(Color.FromRgb(124, 58, 237)));
+            ColorRange(offset, line.EndOffset, _codeBrush);
             return;
         }
 
         if (IsInsideBlock(line, "$$"))
         {
-            ColorRange(offset, line.EndOffset, new SolidColorBrush(Color.FromRgb(162, 28, 175)));
+            ColorRange(offset, line.EndOffset, _mathBrush);
             return;
         }
 
         if (trimmed.StartsWith("```", StringComparison.Ordinal))
         {
-            ColorRange(offset, line.EndOffset, Brushes.MediumPurple, FontWeights.SemiBold);
+            ColorRange(offset, line.EndOffset, _codeBrush, FontWeights.SemiBold);
             return;
         }
 
         if (trimmed.StartsWith("$$", StringComparison.Ordinal))
         {
-            ColorRange(offset, line.EndOffset, new SolidColorBrush(Color.FromRgb(162, 28, 175)), FontWeights.SemiBold);
+            ColorRange(offset, line.EndOffset, _mathBrush, FontWeights.SemiBold);
             return;
         }
 
         if (trimmed.StartsWith("#", StringComparison.Ordinal))
         {
-            ColorRange(offset, line.EndOffset, new SolidColorBrush(Color.FromRgb(11, 92, 173)), FontWeights.Bold);
+            ColorRange(offset, line.EndOffset, _headingBrush, FontWeights.Bold);
             return;
         }
 
         if (trimmed.StartsWith(">", StringComparison.Ordinal))
         {
-            ColorRange(offset, line.EndOffset, Brushes.SlateGray, FontWeights.Normal, FontStyles.Italic);
+            ColorRange(offset, line.EndOffset, _mutedBrush, FontWeights.Normal, FontStyles.Italic);
         }
 
         var listMatch = ListRegex.Match(text);
         if (listMatch.Success)
         {
-            ColorRange(offset + listMatch.Index, offset + listMatch.Index + listMatch.Length, Brushes.Teal, FontWeights.SemiBold);
+            ColorRange(offset + listMatch.Index, offset + listMatch.Index + listMatch.Length, _accentBrush, FontWeights.SemiBold);
         }
 
-        ColorMatches(offset, text, LinkRegex, new SolidColorBrush(Color.FromRgb(11, 102, 195)));
-        ColorMatches(offset, text, StrongRegex, Brushes.Black, FontWeights.Bold);
-        ColorMatches(offset, text, EmphasisRegex, new SolidColorBrush(Color.FromRgb(52, 73, 94)), FontWeights.Normal, FontStyles.Italic);
-        ColorMatches(offset, text, MathRegex, new SolidColorBrush(Color.FromRgb(162, 28, 175)));
-        ColorMatches(offset, text, InlineCodeRegex, new SolidColorBrush(Color.FromRgb(154, 52, 18)));
+        ColorMatches(offset, text, LinkRegex, _linkBrush);
+        ColorMatches(offset, text, StrongRegex, _textBrush, FontWeights.Bold);
+        ColorMatches(offset, text, EmphasisRegex, _mutedBrush, FontWeights.Normal, FontStyles.Italic);
+        ColorMatches(offset, text, MathRegex, _mathBrush);
+        ColorMatches(offset, text, InlineCodeRegex, _codeBrush);
     }
 
     private bool IsInsideBlock(DocumentLine line, string marker)
@@ -130,5 +149,20 @@ public sealed class MarkdownColorizer : DocumentColorizingTransformer
                     current.Stretch));
             }
         });
+    }
+
+    private static Brush CreateBrush(string hex)
+    {
+        try
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex);
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+        catch
+        {
+            return Brushes.Black;
+        }
     }
 }
