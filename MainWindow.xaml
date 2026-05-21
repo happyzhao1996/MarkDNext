@@ -1,0 +1,163 @@
+<Window x:Class="MarkDNext.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:MarkDNext"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:avalon="http://icsharpcode.net/sharpdevelop/avalonedit"
+        mc:Ignorable="d"
+        Title="MarkDNext"
+        Height="760"
+        Width="1180"
+        MinHeight="560"
+        MinWidth="860"
+        AllowDrop="True"
+        Closing="Window_Closing"
+        Drop="Window_Drop"
+        KeyDown="Window_KeyDown"
+        SourceInitialized="Window_SourceInitialized"
+        Background="Transparent">
+    <DockPanel x:Name="RootDock" Background="#DDF6F7F9">
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top" Background="#EAF3F6FA">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New" InputGestureText="Ctrl+N" Click="New_Click" />
+                <MenuItem Header="_Open..." InputGestureText="Ctrl+O" Click="Open_Click" />
+                <Separator />
+                <MenuItem Header="_Save" InputGestureText="Ctrl+S" Click="Save_Click" />
+                <MenuItem Header="Save _As..." InputGestureText="Ctrl+Shift+S" Click="SaveAs_Click" />
+                <MenuItem Header="_Reload From Disk" InputGestureText="F5" Click="Reload_Click" />
+                <Separator />
+                <MenuItem Header="_Print..." InputGestureText="Ctrl+P" Click="Print_Click" />
+                <MenuItem Header="_Export..." Click="Export_Click" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="Exit_Click" />
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" InputGestureText="Ctrl+Z" Click="Undo_Click" />
+                <MenuItem Header="_Redo" InputGestureText="Ctrl+Y" Click="Redo_Click" />
+                <Separator />
+                <MenuItem Header="Cu_t" InputGestureText="Ctrl+X" Click="Cut_Click" />
+                <MenuItem Header="_Copy" InputGestureText="Ctrl+C" Click="Copy_Click" />
+                <MenuItem Header="_Paste" InputGestureText="Ctrl+V" Click="Paste_Click" />
+                <Separator />
+                <MenuItem Header="_Find..." InputGestureText="Ctrl+F" Click="Find_Click" />
+                <MenuItem Header="Find _Next" InputGestureText="F3" Click="FindNext_Click" />
+                <MenuItem Header="Find _Previous" InputGestureText="Shift+F3" Click="FindPrevious_Click" />
+                <MenuItem Header="Insert _Image..." Click="InsertImage_Click" />
+                <Separator />
+                <MenuItem x:Name="AutoCompletionMenuItem" Header="_Automatic Completion" IsCheckable="True" Click="AutoCompletion_Click" />
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem x:Name="ViewBothMenuItem" Header="_Editor + Preview" IsCheckable="True" IsChecked="True" Click="ViewBoth_Click" />
+                <MenuItem x:Name="ViewEditorMenuItem" Header="Editor _Only" IsCheckable="True" Click="ViewEditor_Click" />
+                <MenuItem x:Name="ViewPreviewMenuItem" Header="_Preview Only" IsCheckable="True" Click="ViewPreview_Click" />
+                <Separator />
+                <MenuItem x:Name="SourceModeMenuItem" Header="_Source Markdown" IsCheckable="True" IsChecked="True" Click="SourceMode_Click" />
+                <MenuItem x:Name="WysiwygModeMenuItem" Header="_WYSIWYG Markdown" IsCheckable="True" Click="WysiwygMode_Click" />
+                <Separator />
+                <MenuItem x:Name="WordWrapMenuItem" Header="_Word Wrap" IsCheckable="True" IsChecked="True" Click="WordWrap_Click" />
+                <Separator />
+                <MenuItem Header="_Font">
+                    <MenuItem Header="_Choose Font..." Click="Font_Click" />
+                    <MenuItem Header="Increase Font Size" InputGestureText="Ctrl++" Click="IncreaseFont_Click" />
+                    <MenuItem Header="Decrease Font Size" InputGestureText="Ctrl+-" Click="DecreaseFont_Click" />
+                    <MenuItem Header="_Reset Font" Click="ResetFont_Click" />
+                </MenuItem>
+                <MenuItem Header="_Color Profile">
+                    <MenuItem Header="_Load..." Click="LoadColorProfile_Click" />
+                    <MenuItem Header="_Save Current As..." Click="SaveColorProfile_Click" />
+                    <MenuItem Header="_Reset Colors" Click="ResetColorProfile_Click" />
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="_Theme">
+                    <MenuItem x:Name="MicaMaterialMenuItem" Header="_Mica" IsCheckable="True" Click="MicaMaterial_Click" />
+                    <MenuItem x:Name="AcrylicMaterialMenuItem" Header="_Acrylic" IsCheckable="True" Click="AcrylicMaterial_Click" />
+                    <MenuItem x:Name="FlatMaterialMenuItem" Header="_Flat" IsCheckable="True" IsChecked="True" Click="FlatMaterial_Click" />
+                </MenuItem>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="About_Click" />
+            </MenuItem>
+        </Menu>
+
+        <Border x:Name="FindBar"
+                DockPanel.Dock="Top"
+                Visibility="Collapsed"
+                BorderBrush="#BFC8D4"
+                BorderThickness="0,1,0,1"
+                Background="#F7FFFFFF"
+                Padding="8">
+            <DockPanel LastChildFill="False">
+                <TextBlock Text="Find"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           Foreground="#485364" />
+                <TextBox x:Name="FindTextBox"
+                         Width="280"
+                         MinWidth="180"
+                         VerticalContentAlignment="Center"
+                         KeyDown="FindTextBox_KeyDown" />
+                <Button Content="Next" MinWidth="58" Margin="8,0,0,0" Click="FindNext_Click" />
+                <Button Content="Prev" MinWidth="58" Margin="6,0,0,0" Click="FindPrevious_Click" />
+                <Button Content="Close" MinWidth="62" Margin="6,0,0,0" Click="CloseFind_Click" />
+            </DockPanel>
+        </Border>
+
+        <StatusBar x:Name="MainStatusBar" DockPanel.Dock="Bottom" Background="#EAF3F6FA">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Ready" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock x:Name="PositionText" Text="Ln 1, Col 1" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid x:Name="WorkspaceGrid" Margin="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="EditorColumn" Width="*" MinWidth="220" />
+                <ColumnDefinition x:Name="SplitterColumn" Width="6" />
+                <ColumnDefinition x:Name="PreviewColumn" Width="*" MinWidth="220" />
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="EditorPane"
+                    Grid.Column="0"
+                    BorderBrush="#BFC8D4"
+                    BorderThickness="1"
+                    Background="#F7FFFFFF">
+                <Grid>
+                    <avalon:TextEditor x:Name="Editor"
+                                       FontFamily="Consolas"
+                                       FontSize="14"
+                                       Background="#00FFFFFF"
+                                       Foreground="#182433"
+                                       BorderThickness="0"
+                                       Padding="14"
+                                       ShowLineNumbers="True"
+                                       WordWrap="True"
+                                       TextChanged="Editor_TextChanged" />
+                    <wv2:WebView2 x:Name="Wysiwyg"
+                                  Visibility="Collapsed" />
+                </Grid>
+            </Border>
+
+            <GridSplitter x:Name="Splitter"
+                          Grid.Column="1"
+                          Width="6"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="#B8C4D2"
+                          ResizeBehavior="PreviousAndNext"
+                          ResizeDirection="Columns" />
+
+            <Border x:Name="PreviewPane"
+                    Grid.Column="2"
+                    BorderBrush="#BFC8D4"
+                    BorderThickness="1"
+                    Background="#F7FFFFFF">
+                <wv2:WebView2 x:Name="Preview" />
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

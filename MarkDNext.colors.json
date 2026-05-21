@@ -1,0 +1,15 @@
+{
+  "page": "#ffffff",
+  "text": "#1f2933",
+  "muted": "#5d6978",
+  "heading": "#111827",
+  "line": "#d9e0e8",
+  "code": "#f4f6f8",
+  "accent": "#1769aa",
+  "surface": "#f7ffffff",
+  "window": "#f6f7f9",
+  "chrome": "#eaf3f6fa",
+  "editorBackground": "#00ffffff",
+  "editorText": "#182433",
+  "quoteBackground": "#f8fafc"
+}
