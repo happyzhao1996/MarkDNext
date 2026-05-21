@@ -32,15 +32,7 @@
 
             <Style TargetType="{x:Type MenuItem}">
                 <Setter Property="Foreground" Value="{DynamicResource ThemeTextBrush}" />
-                <Setter Property="Background" Value="{DynamicResource ThemeChromeBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource ThemeLineBrush}" />
                 <Style.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource ThemeSelectionBrush}" />
-                    </Trigger>
-                    <Trigger Property="IsSubmenuOpen" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource ThemeSelectionBrush}" />
-                    </Trigger>
                     <Trigger Property="IsEnabled" Value="False">
                         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedBrush}" />
                     </Trigger>
@@ -53,10 +45,20 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource ThemeLineBrush}" />
             </Style>
 
+            <Style x:Key="FlatScrollbarThumbStyle" TargetType="{x:Type Thumb}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Border Background="{TemplateBinding Background}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <Style TargetType="{x:Type ScrollBar}">
                 <Setter Property="Background" Value="{DynamicResource ThemeSurfaceBrush}" />
                 <Setter Property="Foreground" Value="{DynamicResource ThemeScrollbarThumbBrush}" />
-                <Setter Property="Width" Value="12" />
+                <Setter Property="Width" Value="10" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type ScrollBar}">
@@ -69,9 +71,8 @@
                                     </Track.DecreaseRepeatButton>
                                     <Track.Thumb>
                                         <Thumb x:Name="ScrollbarThumb"
-                                               Background="{DynamicResource ThemeScrollbarThumbBrush}"
-                                               BorderBrush="{DynamicResource ThemeLineBrush}"
-                                               BorderThickness="1" />
+                                               Style="{StaticResource FlatScrollbarThumbStyle}"
+                                               Background="{DynamicResource ThemeScrollbarThumbBrush}" />
                                     </Track.Thumb>
                                     <Track.IncreaseRepeatButton>
                                         <RepeatButton Command="{x:Static ScrollBar.LineDownCommand}"
@@ -82,7 +83,7 @@
                             </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="Orientation" Value="Horizontal">
-                                    <Setter Property="Height" Value="12" />
+                                    <Setter Property="Height" Value="10" />
                                     <Setter Property="Width" Value="Auto" />
                                     <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
                                 </Trigger>

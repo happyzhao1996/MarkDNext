@@ -509,7 +509,6 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog() == true)
         {
-            ApplyFontPreview();
             StatusText.Text = $"Font changed to {_editorFontFamily}";
             return;
         }
@@ -904,6 +903,16 @@ public partial class MainWindow : Window
         RootDock.Resources["ThemeSelectionBrush"] = BrushFromHex(selection);
         RootDock.Resources["ThemeScrollbarThumbBrush"] = BrushFromHex(scrollbarThumb);
         RootDock.Resources["ThemeScrollbarThumbHoverBrush"] = BrushFromHex(scrollbarThumbHover);
+
+        RootDock.Resources[SystemColors.MenuBrushKey] = BrushFromHex(_colorProfile.Chrome);
+        RootDock.Resources[SystemColors.MenuTextBrushKey] = BrushFromHex(_colorProfile.Text);
+        RootDock.Resources[SystemColors.ControlBrushKey] = BrushFromHex(_colorProfile.Chrome);
+        RootDock.Resources[SystemColors.ControlTextBrushKey] = BrushFromHex(_colorProfile.Text);
+        RootDock.Resources[SystemColors.HighlightBrushKey] = BrushFromHex(selection);
+        RootDock.Resources[SystemColors.HighlightTextBrushKey] = BrushFromHex(_colorProfile.Text);
+        RootDock.Resources[SystemColors.WindowBrushKey] = BrushFromHex(_colorProfile.Surface);
+        RootDock.Resources[SystemColors.WindowTextBrushKey] = BrushFromHex(_colorProfile.Text);
+        RootDock.Resources[SystemColors.GrayTextBrushKey] = BrushFromHex(_colorProfile.Muted);
     }
 
     private void ApplyStatusModeButtonAppearance(ToggleButton button)
