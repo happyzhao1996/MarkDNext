@@ -18,6 +18,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WebViewCreationProperties = Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties;
 using WpfWebView2 = Microsoft.Web.WebView2.Wpf.WebView2;
 
 namespace MarkDNext;
@@ -123,6 +124,9 @@ public partial class MainWindow : Window
 
     private async Task InitializeWebViewsAsync()
     {
+        ConfigureWebViewUserDataFolder(Preview);
+        ConfigureWebViewUserDataFolder(Wysiwyg);
+
         try
         {
             await Preview.EnsureCoreWebView2Async();
@@ -160,6 +164,23 @@ public partial class MainWindow : Window
             _wysiwygReady = false;
             Debug.WriteLine(ex);
         }
+    }
+
+    private static void ConfigureWebViewUserDataFolder(WpfWebView2 webView)
+    {
+        webView.CreationProperties ??= new WebViewCreationProperties();
+        webView.CreationProperties.UserDataFolder = GetWebViewUserDataFolder();
+    }
+
+    private static string GetWebViewUserDataFolder()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(localAppData))
+        {
+            localAppData = AppContext.BaseDirectory;
+        }
+
+        return Path.Combine(localAppData, "MarkDNext", "WebView2");
     }
 
     private void Window_SourceInitialized(object sender, EventArgs e)
