@@ -17,7 +17,7 @@ MarkDNext is a native Windows Markdown editor and viewer. It was vibe-coded with
 - Source editor highlighting and completion through AvalonEdit.
 - Automatic completion is optional from `Edit -> Automatic Completion`; `Ctrl+H` toggles it in source mode.
 - Offline code highlighting through bundled highlight.js assets.
-- KaTeX rendering for inline `$\\alpha$` and display `$$\\alpha$$` formulas.
+- KaTeX rendering for inline `$\alpha$` and display `$$\alpha$$` formulas.
 - Auto reloads the file when it is changed on disk and the editor has no unsaved changes.
 - Find in editor or preview.
 - Print from the File menu, or use `File -> Export` to export HTML or PDF. HTML export copies local images beside the document under an `assets` folder.
