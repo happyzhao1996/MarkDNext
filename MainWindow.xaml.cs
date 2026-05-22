@@ -3121,18 +3121,6 @@ html, body {
   padding: 0;
   text-align: center;
 }
-.math-display .katex-display {
-  display: block;
-  width: 100%;
-  margin: 0 auto !important;
-  max-width: 100%;
-  min-width: 0;
-  text-align: center;
-}
-.math-display .katex {
-  display: inline-block !important;
-  text-align: center !important;
-}
 .math-inline {
   white-space: nowrap;
 }
@@ -3207,7 +3195,7 @@ async function typesetMath(root) {
     const source = mathSource(node);
     node.classList.remove('math-ready');
     if (window.katex) {
-      window.katex.render(source, node, {
+      node.innerHTML = window.katex.renderToString(source, {
         displayMode: node.classList.contains('math-display'),
         throwOnError: false,
         output: 'htmlAndMathml'
@@ -3219,13 +3207,13 @@ async function typesetMath(root) {
 }
 
 function mathSource(node) {
-  let source = (node.textContent || '').trim();
+  let source = (node.getAttribute('data-tex') || node.textContent || '').trim();
   if (source.startsWith('$$') && source.endsWith('$$')) {
-    return source.slice(2, -2).trim();
+    source = source.slice(2, -2).trim();
+  } else if (source.startsWith('$') && source.endsWith('$')) {
+    source = source.slice(1, -1).trim();
   }
-  if (source.startsWith('$') && source.endsWith('$')) {
-    return source.slice(1, -1).trim();
-  }
+
   return source;
 }
 
@@ -3239,25 +3227,6 @@ function centerDisplayMath(root) {
     display.style.display = 'block';
     display.style.width = '100%';
     display.style.textAlign = 'center';
-    const katexDisplay = display.querySelector('.katex-display');
-    if (katexDisplay) {
-      katexDisplay.style.width = '100%';
-      katexDisplay.style.textAlign = 'center';
-      katexDisplay.style.marginLeft = 'auto';
-      katexDisplay.style.marginRight = 'auto';
-    }
-    const katex = display.querySelector('.katex-display > .katex');
-    if (katex) {
-      katex.style.display = 'inline-block';
-      katex.style.textAlign = 'initial';
-      katex.style.maxWidth = '100%';
-    }
-    const katexHtml = display.querySelector('.katex-display > .katex > .katex-html');
-    if (katexHtml) {
-      katexHtml.style.display = 'inline-block';
-      katexHtml.style.position = 'relative';
-      katexHtml.style.textAlign = 'left';
-    }
   });
 }
 
@@ -3393,16 +3362,15 @@ window.mdvSetPreview = async function (html, sourceLine) {
 
         foreach (var segment in mathSegments)
         {
-            var encodedMath = WebUtility.HtmlEncode(segment.Source);
+            var mathHtml = RenderMathElementHtml(segment.Source, segment.Display);
             if (segment.Display)
             {
-                var display = $"<div class=\"math math-display\">{encodedMath}</div>";
-                html = html.Replace($"<p>{segment.Placeholder}</p>", display, StringComparison.Ordinal);
-                html = html.Replace(segment.Placeholder, display, StringComparison.Ordinal);
+                html = html.Replace($"<p>{segment.Placeholder}</p>", mathHtml, StringComparison.Ordinal);
+                html = html.Replace(segment.Placeholder, mathHtml, StringComparison.Ordinal);
             }
             else
             {
-                html = html.Replace(segment.Placeholder, $"<span class=\"math math-inline\">{encodedMath}</span>", StringComparison.Ordinal);
+                html = html.Replace(segment.Placeholder, mathHtml, StringComparison.Ordinal);
             }
         }
 
@@ -3414,6 +3382,14 @@ window.mdvSetPreview = async function (html, sourceLine) {
         }
 
         return ApplyImagePerformanceAttributes(ResolveImageSources(html));
+    }
+
+    private static string RenderMathElementHtml(string source, bool display)
+    {
+        var encodedMath = WebUtility.HtmlEncode(source);
+        return display
+            ? $"<div class=\"math math-display\" data-tex=\"{encodedMath}\" data-display-mode=\"true\">{encodedMath}</div>"
+            : $"<span class=\"math math-inline\" data-tex=\"{encodedMath}\">{encodedMath}</span>";
     }
 
     private static bool IsFrontMatterBlock(string markdown)
@@ -4131,18 +4107,6 @@ html, body {
   padding: 0;
   text-align: center;
 }
-.md-rendered .math-display .katex-display {
-  display: block;
-  width: 100%;
-  margin: 0 auto !important;
-  max-width: 100%;
-  min-width: 0;
-  text-align: center;
-}
-.md-rendered .math-display .katex {
-  display: inline-block !important;
-  text-align: center !important;
-}
 .md-block.math {
   box-sizing: border-box;
   display: block;
@@ -4163,21 +4127,6 @@ html, body {
 .md-block.math .math-shell {
   width: 100%;
   text-align: center;
-}
-.md-block.math .katex-display {
-  width: 100% !important;
-  text-align: center !important;
-}
-.md-block.math .katex-display > .katex {
-  display: inline-block !important;
-  width: auto !important;
-  max-width: 100%;
-  text-align: center !important;
-}
-.md-block.math .katex-display > .katex > .katex-html {
-  display: inline-block !important;
-  position: relative;
-  text-align: left;
 }
 .md-rendered .math-inline {
   white-space: nowrap;
@@ -4438,7 +4387,7 @@ async function refreshEnhancements(scope) {
     const source = mathSource(node);
     node.classList.remove('math-ready');
     if (window.katex) {
-      window.katex.render(source, node, {
+      node.innerHTML = window.katex.renderToString(source, {
         displayMode: node.classList.contains('math-display'),
         throwOnError: false,
         output: 'htmlAndMathml'
@@ -4450,13 +4399,13 @@ async function refreshEnhancements(scope) {
 }
 
 function mathSource(node) {
-  let source = (node.textContent || '').trim();
+  let source = (node.getAttribute('data-tex') || node.textContent || '').trim();
   if (source.startsWith('$$') && source.endsWith('$$')) {
-    return source.slice(2, -2).trim();
+    source = source.slice(2, -2).trim();
+  } else if (source.startsWith('$') && source.endsWith('$')) {
+    source = source.slice(1, -1).trim();
   }
-  if (source.startsWith('$') && source.endsWith('$')) {
-    return source.slice(1, -1).trim();
-  }
+
   return source;
 }
 
@@ -4475,25 +4424,6 @@ function centerDisplayMath(root) {
       rendered.style.width = '100%';
       rendered.style.textAlign = 'center';
     }
-    const katexDisplay = display.querySelector('.katex-display');
-    if (katexDisplay) {
-      katexDisplay.style.width = '100%';
-      katexDisplay.style.textAlign = 'center';
-      katexDisplay.style.marginLeft = 'auto';
-      katexDisplay.style.marginRight = 'auto';
-    }
-    const katex = display.querySelector('.katex-display > .katex');
-    if (katex) {
-      katex.style.display = 'inline-block';
-      katex.style.textAlign = 'initial';
-      katex.style.maxWidth = '100%';
-    }
-    const katexHtml = display.querySelector('.katex-display > .katex > .katex-html');
-    if (katexHtml) {
-      katexHtml.style.display = 'inline-block';
-      katexHtml.style.position = 'relative';
-      katexHtml.style.textAlign = 'left';
-    }
   });
 }
 
@@ -4505,6 +4435,15 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value || '');
+}
+
+function mathHtml(source, displayMode) {
+  const tag = displayMode ? 'div' : 'span';
+  const className = displayMode ? 'math math-display' : 'math math-inline';
+  const displayAttribute = displayMode ? ' data-display-mode="true"' : '';
+  return '<' + tag + ' class="' + className + '" data-tex="' + escapeAttribute(source) + '"' + displayAttribute + '>' +
+    escapeHtml(source) +
+    '</' + tag + '>';
 }
 
 function resolveImageSource(source) {
@@ -4536,10 +4475,10 @@ function renderInline(source) {
     return keep('<code>' + code + '</code>');
   });
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, function (match) {
-    return keep('<span class="math math-inline">' + escapeHtml(match) + '</span>');
+    return keep(mathHtml(match, true));
   });
   text = text.replace(/\$([^$\n]+?)\$/g, function (match) {
-    return keep('<span class="math math-inline">' + escapeHtml(match) + '</span>');
+    return keep(mathHtml(match, false));
   });
   text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function (_, alt, target) {
     const src = target.trim().replace(/^<(.+)>$/, '$1').replace(/^(.+?)\s+["'][^"']+["']$/, '$1');
@@ -4591,7 +4530,7 @@ function renderMarkdownBlock(source) {
   }
 
   if (/^\$\$[\s\S]*\$\$$/.test(trimmed)) {
-    return '<div class="math math-display">' + escapeHtml(trimmed) + '</div>';
+    return mathHtml(trimmed, true);
   }
 
   const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
@@ -5651,7 +5590,7 @@ refreshEnhancements(document);
             return false;
         }
 
-        var headers = $"Content-Type: {GetAssetMimeType(relativePath)}\r\nCache-Control: public, max-age=31536000";
+        var headers = $"Content-Type: {GetAssetMimeType(relativePath)}\r\nCache-Control: public, max-age=31536000\r\nAccess-Control-Allow-Origin: *";
         response = webView.Environment.CreateWebResourceResponse(stream, 200, "OK", headers);
         return true;
     }
@@ -6179,17 +6118,6 @@ html, body {
   display: block;
   width: 100%;
   text-align: center;
-}
-.math-display .katex-display {
-  display: block;
-  width: 100%;
-  margin: 0 auto !important;
-  max-width: 100%;
-  min-width: 0;
-  text-align: center;
-}
-.math-display .katex {
-  display: inline-block !important;
 }
 @media print {
   .markdown-body {
