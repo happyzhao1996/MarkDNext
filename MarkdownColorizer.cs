@@ -8,7 +8,7 @@ namespace MarkDNext;
 
 public sealed class MarkdownColorizer : DocumentColorizingTransformer
 {
-    private static readonly Regex LinkRegex = new(@"\[[^\]]+\]\([^)]+\)", RegexOptions.Compiled);
+    private static readonly Regex LinkRegex = new(@"\[(?<text>(?:\\.|[^\]\\])+)\]\((?<target>(?:\\.|[^\)\\])+)\)", RegexOptions.Compiled);
     private static readonly Regex InlineCodeRegex = new(@"`[^`]+`", RegexOptions.Compiled);
     private static readonly Regex MathRegex = new(@"\$\$.*?\$\$|\$[^$\r\n]+\$", RegexOptions.Compiled);
     private static readonly Regex StrongRegex = new(@"(\*\*|__)[^\r\n]+?(\*\*|__)", RegexOptions.Compiled);
@@ -17,16 +17,18 @@ public sealed class MarkdownColorizer : DocumentColorizingTransformer
 
     private Brush _headingBrush = CreateBrush("#0b5cad");
     private Brush _linkBrush = CreateBrush("#0b66c3");
+    private Brush _linkTargetBrush = CreateBrush("#64748b");
     private Brush _mutedBrush = CreateBrush("#64748b");
     private Brush _accentBrush = CreateBrush("#0f766e");
     private Brush _codeBrush = CreateBrush("#9a3412");
     private Brush _mathBrush = CreateBrush("#a21caf");
     private Brush _textBrush = CreateBrush("#111827");
 
-    public void ApplyTheme(string heading, string link, string muted, string accent, string code, string text)
+    public void ApplyTheme(string heading, string link, string linkTarget, string muted, string accent, string code, string text)
     {
         _headingBrush = CreateBrush(heading);
         _linkBrush = CreateBrush(link);
+        _linkTargetBrush = CreateBrush(linkTarget);
         _mutedBrush = CreateBrush(muted);
         _accentBrush = CreateBrush(accent);
         _codeBrush = CreateBrush(code);
@@ -86,11 +88,28 @@ public sealed class MarkdownColorizer : DocumentColorizingTransformer
             ColorRange(offset + listMatch.Index, offset + listMatch.Index + listMatch.Length, _accentBrush, FontWeights.SemiBold);
         }
 
-        ColorMatches(offset, text, LinkRegex, _linkBrush);
+        ColorLinks(offset, text);
         ColorMatches(offset, text, StrongRegex, _textBrush, FontWeights.Bold);
         ColorMatches(offset, text, EmphasisRegex, _mutedBrush, FontWeights.Normal, FontStyles.Italic);
         ColorMatches(offset, text, MathRegex, _mathBrush);
         ColorMatches(offset, text, InlineCodeRegex, _codeBrush);
+    }
+
+    private void ColorLinks(int lineOffset, string text)
+    {
+        foreach (Match match in LinkRegex.Matches(text))
+        {
+            if (!match.Success || match.Length == 0)
+            {
+                continue;
+            }
+
+            var label = match.Groups["text"];
+            var target = match.Groups["target"];
+            ColorRange(lineOffset + match.Index, lineOffset + match.Index + match.Length, _mutedBrush);
+            ColorRange(lineOffset + label.Index, lineOffset + label.Index + label.Length, _linkBrush, FontWeights.SemiBold);
+            ColorRange(lineOffset + target.Index, lineOffset + target.Index + target.Length, _linkTargetBrush);
+        }
     }
 
     private bool IsInsideBlock(DocumentLine line, string marker)

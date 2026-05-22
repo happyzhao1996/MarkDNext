@@ -8,7 +8,7 @@
         "error": "#fb464c",
         "foreground": "#d6d6d6",
         "heading": "#aab9ff",
-        "link": "#8fa4e8",
+        "link": "#94a4dd",
         "markup": "#999999",
         "selection": "#4b5573"
     },
@@ -21,7 +21,7 @@
         "error": "#c72d3f",
         "foreground": "#222222",
         "heading": "#3f51b5",
-        "link": "#4c5fb8",
+        "link": "#475bb2",
         "markup": "#707070",
         "selection": "#cfd6f5"
     }

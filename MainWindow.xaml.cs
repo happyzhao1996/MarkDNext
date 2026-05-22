@@ -70,7 +70,7 @@ public partial class MainWindow : Window
     private double _webEditorFontSize = 18;
     private string _contentFontFamily = "Segoe UI";
     private double _contentFontSize = 20;
-    private double _webViewDefaultZoom = 1.0;
+    private double _webViewDefaultZoom = 0.9;
     private string _currentThemeId = DefaultThemeId;
     private string _linkColor = "#376f99";
     private ThemeMode _themeMode = ThemeMode.Normal;
@@ -699,7 +699,7 @@ public partial class MainWindow : Window
         _editorFontSize = 18;
         _webEditorFontSize = 18;
         _contentFontSize = 20;
-        _webViewDefaultZoom = 1.0;
+        _webViewDefaultZoom = 0.9;
         ApplyAppearance();
         ApplyWebViewDefaultZoom();
         RefreshRenderedShells();
@@ -1134,6 +1134,13 @@ public partial class MainWindow : Window
         SetWebViewZoom(Wysiwyg, _webViewDefaultZoom, updateDefault: false);
     }
 
+    private void ResetWebViewZoomToDefault()
+    {
+        SetWebViewZoom(Preview, _webViewDefaultZoom, updateDefault: false);
+        SetWebViewZoom(Wysiwyg, _webViewDefaultZoom, updateDefault: false);
+        StatusText.Text = $"WebView zoom reset to {(_webViewDefaultZoom * 100).ToString("0", CultureInfo.InvariantCulture)}%";
+    }
+
     private void SetWebViewZoom(WpfWebView2 webView, double zoomFactor, bool updateDefault = true)
     {
         if (webView.CoreWebView2 is null)
@@ -1199,6 +1206,7 @@ public partial class MainWindow : Window
         _markdownColorizer.ApplyTheme(
             _colorProfile.Heading,
             EditorLinkColor(),
+            EditorLinkTargetColor(),
             _colorProfile.Muted,
             _colorProfile.Accent,
             _colorProfile.Heading,
@@ -1219,6 +1227,13 @@ public partial class MainWindow : Window
         return _themeMode == ThemeMode.Dark
             ? MixColors(_colorProfile.EditorBackground, _linkColor, 0.58)
             : MixColors(_colorProfile.EditorText, _linkColor, 0.42);
+    }
+
+    private string EditorLinkTargetColor()
+    {
+        return _themeMode == ThemeMode.Dark
+            ? MixColors(_colorProfile.EditorBackground, _colorProfile.Muted, 0.74)
+            : MixColors(_colorProfile.EditorText, _colorProfile.Muted, 0.70);
     }
 
     private string MenuBackgroundColor()
@@ -1947,6 +1962,11 @@ public partial class MainWindow : Window
         else if (IsControlZoomModifier() && (e.Key == Key.OemMinus || e.Key == Key.Subtract))
         {
             AdjustWebViewZoom(-0.1);
+            e.Handled = true;
+        }
+        else if (IsControlZoomModifier() && (e.Key == Key.D0 || e.Key == Key.NumPad0))
+        {
+            ResetWebViewZoomToDefault();
             e.Handled = true;
         }
         else if (e.Key == Key.F3)
@@ -2771,6 +2791,18 @@ window.mdvSetWebViewZoomFactor = function (zoom) {
   const value = Math.max(0.25, Math.min(5, Number(zoom) || 1));
   document.documentElement.style.setProperty('--webview-zoom', String(value));
 };
+
+document.addEventListener('keydown', function (event) {
+  if ((!event.ctrlKey && !event.metaKey) || event.altKey) return;
+  const key = event.key || '';
+  if (key === '0') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage({ type: 'resetZoom' });
+    }
+  }
+}, true);
 
 function highlightCode(root) {
   if (!window.hljs) return;
@@ -3926,7 +3958,11 @@ document.addEventListener('keydown', function (event) {
   const key = (event.key || '').toLowerCase();
   const command = event.ctrlKey || event.metaKey;
   if (!command || event.altKey) return;
-  if (key === 'z' && !event.shiftKey) {
+  if (key === '0') {
+    event.preventDefault();
+    event.stopPropagation();
+    post('resetZoom');
+  } else if (key === 'z' && !event.shiftKey) {
     event.preventDefault();
     event.stopPropagation();
     post('undo');
@@ -5744,6 +5780,12 @@ refreshEnhancements(document);
             return true;
         }
 
+        if (string.Equals(type, "resetZoom", StringComparison.OrdinalIgnoreCase))
+        {
+            ResetWebViewZoomToDefault();
+            return true;
+        }
+
         return false;
     }
 
@@ -6319,8 +6361,8 @@ refreshEnhancements(document);
                 "#171a1f",
                 "#e7edf5",
                 "#202734"),
-            "#376f99",
-            "#7fa7c7");
+            "#2f719d",
+            "#6e9fc3");
     }
 
     private static string ThemeDisplayName(string id)
