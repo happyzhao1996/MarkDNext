@@ -28,6 +28,7 @@ public partial class MainWindow : Window
 {
     private const string DocumentHost = "mdv-document.local";
     private const string AssetHost = "mdv-assets.local";
+    private const string LocalImageHost = "mdv-local-image.local";
     private const string DefaultThemeId = "flat";
     private const int ListIndentSize = 4;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
@@ -2736,7 +2737,7 @@ public partial class MainWindow : Window
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://{{DocumentHost}} https://{{AssetHost}} data: blob:; img-src 'self' https://{{DocumentHost}} https://{{AssetHost}} https: http: data: file: blob:; script-src 'nonce-{{nonce}}' https://{{AssetHost}} 'unsafe-eval'; style-src 'unsafe-inline' https://{{AssetHost}}; font-src data: https://{{AssetHost}};">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://{{DocumentHost}} https://{{AssetHost}} https://{{LocalImageHost}} data: blob:; img-src 'self' https://{{DocumentHost}} https://{{AssetHost}} https://{{LocalImageHost}} https: http: data: file: blob:; script-src 'nonce-{{nonce}}' https://{{AssetHost}} 'unsafe-eval'; style-src 'unsafe-inline' https://{{AssetHost}}; font-src data: https://{{AssetHost}};">
 <base href="https://{{DocumentHost}}/">
 <title>{{title}}</title>
 <link rel="stylesheet" href="https://{{AssetHost}}/highlight-github.min.css">
@@ -3351,32 +3352,28 @@ window.mdvSetPreview = async function (html, sourceLine) {
             || source.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
             || source.StartsWith("blob:", StringComparison.OrdinalIgnoreCase)
             || source.StartsWith($"https://{DocumentHost}/", StringComparison.OrdinalIgnoreCase)
-            || source.StartsWith($"https://{AssetHost}/", StringComparison.OrdinalIgnoreCase))
+            || source.StartsWith($"https://{AssetHost}/", StringComparison.OrdinalIgnoreCase)
+            || source.StartsWith($"https://{LocalImageHost}/", StringComparison.OrdinalIgnoreCase))
         {
             return source;
         }
 
+        var decodedSource = UnescapeImageSource(source);
         var normalized = source.Replace('\\', '/');
         try
         {
             if (Uri.TryCreate(source, UriKind.Absolute, out var uri) && uri.IsFile && File.Exists(uri.LocalPath))
             {
-                return ToImageDataUri(uri.LocalPath);
+                return BuildLocalImageResourceUri(uri.LocalPath);
             }
 
-            if (Path.IsPathFullyQualified(source) && File.Exists(source))
+            if (Path.IsPathFullyQualified(decodedSource) && File.Exists(decodedSource))
             {
-                return ToImageDataUri(source);
+                return BuildLocalImageResourceUri(decodedSource);
             }
 
             if (!Uri.TryCreate(source, UriKind.Absolute, out _))
             {
-                var localPath = ResolveDocumentRelativePath(source);
-                if (localPath is not null && File.Exists(localPath))
-                {
-                    return ToImageDataUri(localPath);
-                }
-
                 return BuildDocumentResourceUri(normalized);
             }
         }
@@ -3387,39 +3384,22 @@ window.mdvSetPreview = async function (html, sourceLine) {
         return normalized;
     }
 
-    private string? ResolveDocumentRelativePath(string source)
+    private static string UnescapeImageSource(string source)
     {
-        var clean = source.Split('#', 2)[0].Split('?', 2)[0];
-        clean = Uri.UnescapeDataString(clean)
-            .Replace('/', Path.DirectorySeparatorChar)
-            .Replace('\\', Path.DirectorySeparatorChar);
-        if (string.IsNullOrWhiteSpace(clean) || Path.IsPathFullyQualified(clean))
-        {
-            return null;
-        }
-
         try
         {
-            return Path.GetFullPath(Path.Combine(GetDocumentBaseFolder(), clean));
+            return Uri.UnescapeDataString(source);
         }
         catch
         {
-            return null;
+            return source;
         }
     }
 
-    private static string ToImageDataUri(string path)
+    private static string BuildLocalImageResourceUri(string path)
     {
-        try
-        {
-            var mime = GetImageMimeType(path);
-            var bytes = File.ReadAllBytes(path);
-            return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
-        }
-        catch
-        {
-            return new Uri(Path.GetFullPath(path)).AbsoluteUri;
-        }
+        var fullPath = Path.GetFullPath(path);
+        return $"https://{LocalImageHost}/image?path={Uri.EscapeDataString(fullPath)}";
     }
 
     private static string GetImageMimeType(string path)
@@ -3744,7 +3724,7 @@ window.mdvSetPreview = async function (html, sourceLine) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://{{DocumentHost}} https://{{AssetHost}} data: blob:; img-src 'self' https://{{DocumentHost}} https://{{AssetHost}} https: http: data: file: blob:; script-src 'nonce-{{nonce}}' https://{{AssetHost}} 'unsafe-eval'; style-src 'unsafe-inline' https://{{AssetHost}}; font-src data: https://{{AssetHost}};">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://{{DocumentHost}} https://{{AssetHost}} https://{{LocalImageHost}} data: blob:; img-src 'self' https://{{DocumentHost}} https://{{AssetHost}} https://{{LocalImageHost}} https: http: data: file: blob:; script-src 'nonce-{{nonce}}' https://{{AssetHost}} 'unsafe-eval'; style-src 'unsafe-inline' https://{{AssetHost}}; font-src data: https://{{AssetHost}};">
 <base href="https://{{DocumentHost}}/">
 <link rel="stylesheet" href="https://{{AssetHost}}/highlight-github.min.css">
 <link rel="stylesheet" href="https://{{AssetHost}}/katex/katex.min.css">
@@ -4310,14 +4290,10 @@ function resolveImageSource(source) {
   const raw = (source || '').trim();
   if (!raw || /^(https?:|data:|file:|blob:)/i.test(raw)) return raw;
   if (/^[a-zA-Z]:[\\/]/.test(raw)) {
-    return 'file:///' + raw.replace(/\\/g, '/').replace(/^([a-zA-Z]):/, '$1:').split('/').map(function (part, index) {
-      return index === 0 ? part : encodeURIComponent(part);
-    }).join('/');
+    return 'https://{{LocalImageHost}}/image?path=' + encodeURIComponent(raw);
   }
   if (/^\\\\/.test(raw)) {
-    return 'file:' + raw.replace(/\\/g, '/').split('/').map(function (part, index) {
-      return index < 2 ? part : encodeURIComponent(part);
-    }).join('/');
+    return 'https://{{LocalImageHost}}/image?path=' + encodeURIComponent(raw);
   }
   try {
     return new URL(raw.replace(/\\/g, '/'), document.baseURI).href;
@@ -5298,6 +5274,10 @@ refreshEnhancements(document);
             CoreWebView2WebResourceContext.Image,
             CoreWebView2WebResourceRequestSourceKinds.All);
         webView.AddWebResourceRequestedFilter(
+            $"https://{LocalImageHost}/*",
+            CoreWebView2WebResourceContext.Image,
+            CoreWebView2WebResourceRequestSourceKinds.All);
+        webView.AddWebResourceRequestedFilter(
             $"https://{AssetHost}/*",
             CoreWebView2WebResourceContext.All,
             CoreWebView2WebResourceRequestSourceKinds.All);
@@ -5309,7 +5289,8 @@ refreshEnhancements(document);
         if (sender is not CoreWebView2 webView
             || !Uri.TryCreate(e.Request.Uri, UriKind.Absolute, out var uri)
             || !uri.Host.Equals(DocumentHost, StringComparison.OrdinalIgnoreCase)
-                && !uri.Host.Equals(AssetHost, StringComparison.OrdinalIgnoreCase))
+                && !uri.Host.Equals(AssetHost, StringComparison.OrdinalIgnoreCase)
+                && !uri.Host.Equals(LocalImageHost, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -5319,6 +5300,34 @@ refreshEnhancements(document);
             if (TryCreateAssetResourceResponse(webView, uri, out var response))
             {
                 e.Response = response;
+            }
+
+            return;
+        }
+
+        if (uri.Host.Equals(LocalImageHost, StringComparison.OrdinalIgnoreCase))
+        {
+            if (e.ResourceContext != CoreWebView2WebResourceContext.Image)
+            {
+                return;
+            }
+
+            var localImagePath = GetLocalPathFromLocalImageUri(uri);
+            if (localImagePath is null
+                || !File.Exists(localImagePath)
+                || !IsImageFile(localImagePath))
+            {
+                e.Response = CreateTextResourceResponse(webView, 404, "Not Found", "Image not found.");
+                return;
+            }
+
+            try
+            {
+                e.Response = CreateImageResourceResponse(webView, localImagePath);
+            }
+            catch
+            {
+                e.Response = CreateTextResourceResponse(webView, 500, "Internal Server Error", "Could not read image.");
             }
 
             return;
@@ -5341,13 +5350,58 @@ refreshEnhancements(document);
 
         try
         {
-            var stream = new MemoryStream(File.ReadAllBytes(localPath));
-            var headers = $"Content-Type: {GetImageMimeType(localPath)}\r\nCache-Control: no-cache\r\nAccess-Control-Allow-Origin: *";
-            e.Response = webView.Environment.CreateWebResourceResponse(stream, 200, "OK", headers);
+            e.Response = CreateImageResourceResponse(webView, localPath);
         }
         catch
         {
             e.Response = CreateTextResourceResponse(webView, 500, "Internal Server Error", "Could not read image.");
+        }
+    }
+
+    private static string? GetLocalPathFromLocalImageUri(Uri uri)
+    {
+        var query = uri.Query.TrimStart('?');
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = pair.IndexOf('=');
+            var key = separator >= 0 ? pair[..separator] : pair;
+            if (!Uri.UnescapeDataString(key).Equals("path", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = separator >= 0 ? pair[(separator + 1)..] : string.Empty;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            try
+            {
+                var path = Uri.UnescapeDataString(value);
+                return Path.GetFullPath(path);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static CoreWebView2WebResourceResponse CreateImageResourceResponse(CoreWebView2 webView, string localPath)
+    {
+        var stream = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        try
+        {
+            var headers = $"Content-Type: {GetImageMimeType(localPath)}\r\nCache-Control: no-cache\r\nAccess-Control-Allow-Origin: *";
+            return webView.Environment.CreateWebResourceResponse(stream, 200, "OK", headers);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
         }
     }
 
