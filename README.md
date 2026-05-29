@@ -6,27 +6,29 @@ MarkDNext is a native Windows Markdown editor and viewer. It was vibe-coded with
 
 ## Features
 
+### Platform And Files
+
 - WPF desktop app for Windows 10+ x64.
-- No Electron runtime.
-- Open Markdown files from the UI, drag and drop, or command line.
-- Edit Markdown as source, preview, split view, or WYSIWYG block mode.
-- In WYSIWYG mode, the editor itself is the preview: focused blocks expose raw Markdown, blurred blocks render automatically, and the same Markdown text stays synced with source mode.
-- WYSIWYG mode includes block commands: type `/` in a focused block to insert headings, lists, code blocks, math blocks, and tables.
-- Code blocks in WYSIWYG mode use a language field plus code body editor, with Markdown fences preserved in the saved source.
-- Blurred WYSIWYG blocks can be reordered by dragging their hover handles, with a drop indicator showing the target position.
-- Live WebView2 preview with off-screen KaTeX/code rendering before content is swapped into view.
-- GitHub-style Markdown rendering through Markdig advanced extensions.
-- Source editor highlighting, current-line highlighting, configurable line spacing, and completion through AvalonEdit.
-- Automatic completion is optional from `Edit -> Automatic Completion`; `Ctrl+H` toggles it in source mode.
-- Formatting shortcuts work in source and WYSIWYG editing: `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, and `Ctrl+K`, plus selection wrapping with `$` or `` ` ``.
-- View shortcuts: `Ctrl+W` WYSIWYG, `Ctrl+E` editor only, `Ctrl+R` preview only, and `Ctrl+T` split view. `Ctrl+Q` closes the window.
-- Offline code highlighting through bundled highlight.js assets.
-- KaTeX rendering for inline `$\alpha$` and display `$$\alpha$$` formulas.
-- Auto reloads the file when it is changed on disk and the editor has no unsaved changes.
-- Find in editor or preview; in split view, search follows the currently focused pane.
-- Print from the File menu, or use `File -> Export` to export HTML or PDF. HTML export copies local images beside the document under an `assets` folder.
-- Relative images and links resolve from the Markdown file folder.
-- Theme chooser with built-in and imported themes, complete light/dark theme profile import/export, AppData persistence for user themes, and Mica/Acrylic window backdrop options when supported by Windows.
+- No Electron runtime; preview and WYSIWYG rendering use Microsoft Edge WebView2.
+- Open Markdown from the UI, drag and drop, or command line, with auto-reload for unchanged files.
+
+### Editing And Formatting
+
+- Source editor, split view, preview-only, and WYSIWYG modes, switchable with `Ctrl+E`, `Ctrl+T`, `Ctrl+R`, and `Ctrl+W`; `Ctrl+Q` closes the app.
+- WYSIWYG block editing renders on blur, exposes raw Markdown on focus, supports `/` block commands, and preserves fenced code blocks.
+- WYSIWYG block reordering by dragging hover handles on blurred blocks, with a drop indicator for the target position.
+- AvalonEdit source editing with Markdown highlighting, current-line highlight, configurable line spacing, optional completion (`Ctrl+H`), and formatting shortcuts (`Ctrl+B/I/U/K`, `$`, and backtick wrapping).
+
+### Markdown Syntax And Rendering
+
+- GitHub-style Markdown via Markdig advanced extensions, with relative images and links resolved from the Markdown file folder.
+- Bundled offline KaTeX and highlight.js for math and code rendering.
+- Find in editor or preview; split view follows the currently focused pane.
+
+### Export And Appearance
+
+- Print, export PDF, or export HTML; HTML export copies local images into an adjacent `assets` folder.
+- Built-in and imported themes with complete light/dark JSON import/export, AppData persistence, and optional Mica/Acrylic backdrop.
 
 ## Repository Layout
 
